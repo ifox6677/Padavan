@@ -30,16 +30,11 @@ jobs:
           sudo apt-get install -y build-essential gawk git subversion libncurses5-dev zlib1g-dev \
               gperf gettext unzip python3 python3-pip curl libssl-dev bc
 
-      # 3. 安装指定版本的 Go 语言（1.23.0）
-      - name: Setup Go 1.23.0
-        uses: actions/setup-go@v4  # 使用 v4 版本
-        with:
-          go-version: 1.23.0
-          cache: 'go'  # 对于 v4 这是正确的
-
-      # 4. 验证 Go 版本（可选）
-      - name: Verify Go version
-        run: go version
+      - name: 安装 Go 语言
+        run: |
+          wget https://golang.org/dl/go1.23.0.linux-amd64.tar.gz  # 请根据需要选择 Go 的版本
+          sudo tar -C /usr/local -xzf go1.23.0.linux-amd64.tar.gz
+          echo 'export PATH=$PATH:/usr/local/go/bin' >> $GITHUB_ENV
 
       # 5. 缓存 Go 模块
       - name: Cache Go modules
