@@ -30,13 +30,14 @@ jobs:
           sudo apt-get install -y build-essential gawk git subversion libncurses5-dev zlib1g-dev \
               gperf gettext unzip python3 python3-pip curl libssl-dev bc
 
-      - name: 安装 Go 语言
+      # 3. 安装 Go 语言
+      - name: Install Go
         run: |
           wget https://golang.org/dl/go1.23.0.linux-amd64.tar.gz  # 请根据需要选择 Go 的版本
           sudo tar -C /usr/local -xzf go1.23.0.linux-amd64.tar.gz
           echo 'export PATH=$PATH:/usr/local/go/bin' >> $GITHUB_ENV
 
-      # 5. 缓存 Go 模块
+      # 4. 缓存 Go 模块
       - name: Cache Go modules
         uses: actions/cache@v3
         with:
@@ -47,7 +48,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-go-
 
-      # 6. 缓存工具链
+      # 5. 缓存工具链
       - name: Cache toolchain
         uses: actions/cache@v3
         with:
@@ -56,7 +57,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-toolchain-mipsel-
 
-      # 7. 下载并解压工具链（如果未缓存）
+      # 6. 下载并解压工具链（如果未缓存）
       - name: Download and extract toolchain
         if: steps.cache-toolchain.outputs.cache-hit != 'true'
         run: |
@@ -64,27 +65,27 @@ jobs:
           # 这里假设工具链已包含在仓库中，无需下载
           echo "使用本地工具链，无需下载。"
 
-      # 8. 设置工具链路径
+      # 7. 设置工具链路径
       - name: Setup toolchain
         run: |
           echo "Adding toolchain-mipsel to PATH"
           echo "/home/runner/work/${{ github.repository }}/toolchain-mipsel/bin" >> $GITHUB_PATH
 
-      # 9. 清理旧的源代码（可选）
+      # 8. 清理旧的源代码（可选）
       - name: Clean sources
-        working-directory: padavan/source
+        working-directory: Padavan/trunk  # 确保路径正确
         run: |
           ../../tools/clean_sources.sh
 
-      # 10. 设置源代码（如果有需要）
+      # 9. 设置源代码（如果有需要）
       - name: Setup sources
-        working-directory: padavan/source
+        working-directory: Padavan/trunk  # 确保路径正确
         run: |
           ../../tools/setup_toolchain.sh
 
-      # 11. 配置编译选项
+      # 10. 配置编译选项
       - name: Configure build for ${{ matrix.model }}
-        working-directory: padavan/source
+        working-directory: Padavan/trunk  # 确保路径正确
         env:
           API_KEY: ${{ secrets.API_KEY }}  # 使用 GitHub Secrets
         run: |
@@ -109,7 +110,6 @@ jobs:
             # 启用调试模式的配置步骤
           else
             echo "Debug mode disabled."
-            # 禁用调试模式的配置步骤
           fi
 
           # 根据自定义选项进行配置
@@ -124,16 +124,15 @@ jobs:
           # 使用 Secrets 中的 API_KEY
           echo "API_KEY=${API_KEY}" >> configs/my_build.config
 
-      # 12. 编译固件
+      # 11. 编译固件
       - name: Build Firmware for ${{ matrix.model }}
-        working-directory: padavan/source
+        working-directory: Padavan/trunk  # 确保路径正确
         run: |
           ./build_firmware_modify ${{ matrix.model }}
 
-      # 13. 上传编译产物
+      # 12. 上传编译产物
       - name: Upload Firmware for ${{ matrix.model }}
         uses: actions/upload-artifact@v3
         with:
           name: padavan-firmware-${{ matrix.model }}-${{ github.sha }}
-          path: padavan/source/images/*.trx
-
+          path: Padavan/trunk/images/*.trx  # 确保路径正确
