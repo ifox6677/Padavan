@@ -14,7 +14,7 @@ jobs:
 
     strategy:
       matrix:
-        model: [Mi-R3P]  # 需要编译的路由器型号列表
+        model: [PSG1218, MODEL2, MODEL3]  # 需要编译的路由器型号列表
 
     steps:
       # 1. 检出仓库代码，并启用 Git LFS（如果使用 Git LFS 存储工具链）
@@ -32,10 +32,10 @@ jobs:
 
       # 3. 安装指定版本的 Go 语言（1.23.0）
       - name: Setup Go 1.23.0
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v4  # 使用 v4 版本
         with:
           go-version: 1.23.0
-          cache: 'go'
+          cache: 'go'  # 对于 v4 这是正确的
 
       # 4. 验证 Go 版本（可选）
       - name: Verify Go version
@@ -90,11 +90,44 @@ jobs:
       # 11. 配置编译选项
       - name: Configure build for ${{ matrix.model }}
         working-directory: padavan/source
+        env:
+          API_KEY: ${{ secrets.API_KEY }}  # 使用 GitHub Secrets
         run: |
           # 加载 build.config 中的配置
           source ../../build.config
+
           # 根据型号复制相应的配置文件
           cp configs/templates/${{ matrix.model }}.config configs/my_build.config
+
+          # 根据环境进行额外配置
+          if [ "$ENV" = "production" ]; then
+            echo "Configuring for production environment."
+            # 生产环境的配置步骤
+          else
+            echo "Configuring for development environment."
+            # 开发环境的配置步骤
+          fi
+
+          # 根据调试模式进行配置
+          if [ "$DEBUG" = "true" ]; then
+            echo "Enabling debug mode."
+            # 启用调试模式的配置步骤
+          else
+            echo "Debug mode disabled."
+            # 禁用调试模式的配置步骤
+          fi
+
+          # 根据自定义选项进行配置
+          if [ "$CUSTOM_FEATURES" = "true" ]; then
+            echo "Enabling custom features."
+            # 启用自定义功能的配置步骤
+          fi
+
+          # 处理其他自定义参数
+          echo "Optional parameter: $OPTIONAL_PARAM"
+
+          # 使用 Secrets 中的 API_KEY
+          echo "API_KEY=${API_KEY}" >> configs/my_build.config
 
       # 12. 编译固件
       - name: Build Firmware for ${{ matrix.model }}
@@ -108,3 +141,4 @@ jobs:
         with:
           name: padavan-firmware-${{ matrix.model }}-${{ github.sha }}
           path: padavan/source/images/*.trx
+
