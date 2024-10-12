@@ -14,7 +14,7 @@ jobs:
 
     strategy:
       matrix:
-        model: [PSG1218, MODEL2, MODEL3]  # 需要编译的路由器型号列表
+        model: [PSG1218, MODEL2, Xi-R3P]  # 需要编译的路由器型号列表
 
     steps:
       # 1. 检出仓库代码，并启用 Git LFS（如果使用 Git LFS 存储工具链）
