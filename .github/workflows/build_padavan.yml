@@ -69,23 +69,11 @@ jobs:
       - name: Setup toolchain
         run: |
           echo "Adding toolchain-mipsel to PATH"
-          echo "/home/runner/work/${{ github.repository }}/toolchain-mipsel/bin" >> $GITHUB_PATH
+          echo "${{ github.workspace }}/toolchain-mipsel/bin" >> $GITHUB_PATH
 
-      # 8. 清理旧的源代码（可选）
-      - name: Clean sources
-        working-directory: Padavan/trunk  # 确保路径正确
-        run: |
-          ../../tools/clean_sources.sh
-
-      # 9. 设置源代码（如果有需要）
-      - name: Setup sources
-        working-directory: Padavan/trunk  # 确保路径正确
-        run: |
-          ../../tools/setup_toolchain.sh
-
-      # 10. 配置编译选项
+      # 8. 配置编译选项
       - name: Configure build for ${{ matrix.model }}
-        working-directory: Padavan/trunk  # 确保路径正确
+        working-directory: trunk  # 确保路径正确
         env:
           API_KEY: ${{ secrets.API_KEY }}  # 使用 GitHub Secrets
         run: |
@@ -124,15 +112,15 @@ jobs:
           # 使用 Secrets 中的 API_KEY
           echo "API_KEY=${API_KEY}" >> configs/my_build.config
 
-      # 11. 编译固件
+      # 9. 编译固件
       - name: Build Firmware for ${{ matrix.model }}
-        working-directory: Padavan/trunk  # 确保路径正确
+        working-directory: trunk  # 确保路径正确
         run: |
           ./build_firmware_modify ${{ matrix.model }}
 
-      # 12. 上传编译产物
+      # 10. 上传编译产物
       - name: Upload Firmware for ${{ matrix.model }}
         uses: actions/upload-artifact@v3
         with:
           name: padavan-firmware-${{ matrix.model }}-${{ github.sha }}
-          path: Padavan/trunk/images/*.trx  # 确保路径正确
+          path: trunk/images/*.trx  # 确保路径正确
