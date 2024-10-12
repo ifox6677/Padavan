@@ -73,12 +73,12 @@ jobs:
 
       # 8. 配置编译选项
       - name: Configure build for ${{ matrix.model }}
-        working-directory: trunk  # 确保路径正确
+        working-directory: Padavan/trunk  # 更新为正确的路径
         env:
           API_KEY: ${{ secrets.API_KEY }}  # 使用 GitHub Secrets
         run: |
           # 加载 build.config 中的配置
-          source ../../build.config
+          source build.config  # 直接加载 build.config
 
           # 根据型号复制相应的配置文件
           cp configs/templates/${{ matrix.model }}.config configs/my_build.config
@@ -114,13 +114,19 @@ jobs:
 
       # 9. 编译固件
       - name: Build Firmware for ${{ matrix.model }}
-        working-directory: trunk  # 确保路径正确
+        working-directory: Padavan/trunk  # 更新为正确的路径
         run: |
-          ./build_firmware_modify ${{ matrix.model }}
+          ./build_firmware_modify ${{ matrix.model }}  # 使用 build_firmware_modify 编译固件
 
-      # 10. 上传编译产物
+      # 10. 编译 CI 版本
+      - name: Build CI Firmware for ${{ matrix.model }}
+        working-directory: Padavan/trunk  # 更新为正确的路径
+        run: |
+          ./build_firmware_ci ${{ matrix.model }}  # 使用 build_firmware_ci 编译固件
+
+      # 11. 上传编译产物
       - name: Upload Firmware for ${{ matrix.model }}
         uses: actions/upload-artifact@v3
         with:
           name: padavan-firmware-${{ matrix.model }}-${{ github.sha }}
-          path: trunk/images/*.trx  # 确保路径正确
+          path: Padavan/trunk/images/*.trx  # 确保路径正确
