@@ -23,7 +23,7 @@ jobs:
       matrix:
         include:
           - build_variant: "mt7621-usb"
-            targets: "MI-R3P"  # 指定编译的机型为 R3P
+            targets: "MI-R3P"  # 指定编译的机型为 MI-R3P
 
     steps:
       - name: Checkout repository
@@ -33,12 +33,7 @@ jobs:
         run: |
           sudo apt update
           sudo apt install -y build-essential gawk git subversion libncurses5-dev zlib1g-dev \
-              gperf gettext unzip python3 python3-pip curl libssl-dev bc autoconf automake
-
-      - name: Generate configure script
-        run: |
-          cd ./trunk/tools/mksquashfs_xz
-          autoreconf -i  # 生成 configure 脚本
+              gperf gettext unzip python3 python3-pip curl libssl-dev bc squashfs-tools
 
       - name: Install Go
         run: |
