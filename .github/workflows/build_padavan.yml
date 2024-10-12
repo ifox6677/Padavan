@@ -23,7 +23,7 @@ jobs:
       matrix:
         include:
           - build_variant: "mt7621"
-            targets: "R3P"  # 指定编译的机型为 R3P
+            targets: "MI-R3P"  # 指定编译的机型为 R3P
 
     steps:
       - name: Checkout repository
