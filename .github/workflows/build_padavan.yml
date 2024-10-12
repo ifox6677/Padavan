@@ -108,15 +108,3 @@ jobs:
         with:
           name: padavan-firmware-${{ matrix.model }}-${{ github.sha }}
           path: padavan/source/images/*.trx
-
-      # 14. 错误通知（可选）
-      - name: Notify Slack on Failure
-        if: failure()
-        uses: rtCamp/action-slack-notify@v2
-        env:
-          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
-        with:
-          args: |
-            {
-              "text": "Build failed for model ${{ matrix.model }} in commit ${{ github.sha }}"
-            }
