@@ -2,42 +2,50 @@ name: Build Padavan Firmware
 
 on:
   push:
-    branches:
-      - main
+  pull_request:
   workflow_dispatch:
-  schedule:
-    - cron: '0 0 * * *'  # 每天凌晨 0 点触发
+    inputs:
+      debug_enabled:
+        description: 'Run the build with tmate debugging enabled (https://github.com/marketplace/actions/debugging-with-tmate)'     
+        required: false
+        default: 'no'
+  release:
+    types: [published]
 
 jobs:
   build:
-    runs-on: ubuntu-latest
-
+    name: Build Firmware
+    runs-on: ubuntu-20.04
+    if: ${{ !(github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')) }}
+    env:
+      images_dir: /opt/images
     strategy:
       matrix:
-        model: [xiaomi-r3p]  # 需要编译的路由器型号列表
-
+        include:
+          - build_variant: "mt7620"
+            targets: "PSG1208 PSG1218 NEWIFI-MINI MI-MINI MI-3 OYE-001 5K-W20"
+          - build_variant: "mt7628"
+            targets: "HC5861B MI-NANO MZ-R13 MZ-R13P 360P2 HC5761A HC5661A"
+          - build_variant: "mt7621"
+            targets: "K2P_nano K2P DIR-878 RM2100 CR660x"
+          - build_variant: "mt7621-usb"
+            targets: "XY-C1 JCG-836PRO JCG-AC860M JCG-Y2 DIR-882 A3004NS MSG1500 WR1200JS MI-R3P NEWIFI3 B70"
     steps:
-      # 1. 检出仓库代码，并启用 Git LFS（如果使用 Git LFS 存储工具链）
       - name: Checkout repository
-        uses: actions/checkout@v3
-        with:
-          lfs: true  # 如果使用 Git LFS，请启用
+        uses: actions/checkout@v2
 
-      # 2. 安装依赖项
-      - name: Install dependencies
+      - name: Prepare environment
         run: |
-          sudo apt-get update
-          sudo apt-get install -y build-essential gawk git subversion libncurses5-dev zlib1g-dev \
+          sudo apt update
+          sudo apt install -y build-essential gawk git subversion libncurses5-dev zlib1g-dev \
               gperf gettext unzip python3 python3-pip curl libssl-dev bc
 
-      # 3. 安装 Go 语言
       - name: Install Go
         run: |
-          wget https://golang.org/dl/go1.23.0.linux-amd64.tar.gz  # 请根据需要选择 Go 的版本
+          wget https://golang.org/dl/go1.23.0.linux-amd64.tar.gz
           sudo tar -C /usr/local -xzf go1.23.0.linux-amd64.tar.gz
           echo 'export PATH=$PATH:/usr/local/go/bin' >> $GITHUB_ENV
 
-      # 4. 缓存 Go 模块
       - name: Cache Go modules
         uses: actions/cache@v3
         with:
@@ -48,85 +56,55 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-go-
 
-      # 5. 缓存工具链
-      - name: Cache toolchain
-        uses: actions/cache@v3
+      - name: Prepare toolchain
+        run: |
+          cd toolchain-mipsel
+          sh dl_toolchain.sh
+
+      - name: Setup tmate session
+        uses: mxschmitt/action-tmate@v3
+        if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.debug_enabled == 'yes' }}
         with:
-          path: toolchain-mipsel
-          key: ${{ runner.os }}-toolchain-mipsel-${{ hashFiles('toolchain-mipsel/**') }}
-          restore-keys: |
-            ${{ runner.os }}-toolchain-mipsel-
+          limit-access-to-actor: true
 
-      # 6. 下载并解压工具链（如果未缓存）
-      - name: Download and extract toolchain
-        if: steps.cache-toolchain.outputs.cache-hit != 'true'
+      - name: Start build
         run: |
-          # 如果工具链存储在 GitHub Releases，请使用 curl 或 wget 下载
-          # 这里假设工具链已包含在仓库中，无需下载
-          echo "使用本地工具链，无需下载。"
+          cd Padavan/trunk  # 确保目录正确
+          mkdir -p ${images_dir}
+          for m in ${{ matrix.targets }}; do
+            fakeroot ./build_firmware_ci $m
+            if [ $? = 0 ]; then
+              cp -f images/*.trx ${images_dir}/$m.trx
+            else
+              exit 1
+            fi
+            ./clear_tree_simple >/dev/null 2>&1
+          done
 
-      # 7. 设置工具链路径
-      - name: Setup toolchain
+      - name: Create archive
+        if: ${{ github.event_name != 'release' && success() }}
         run: |
-          echo "Adding toolchain-mipsel to PATH"
-          echo "${{ github.workspace }}/toolchain-mipsel/bin" >> $GITHUB_PATH
+          ls -lh ${images_dir}
+          GIT_VERSION=$(git rev-parse --short=7 HEAD 2>/dev/null) && [ -n "$GIT_VERSION" ] && \
+          image_name=images_${{ matrix.build_variant }}_${GIT_VERSION} || image_name=images_${{ matrix.build_variant }}
+          cd ${images_dir}
+          md5sum *.trx | tee md5sum.txt
+          7z a -mx=9 ${image_name}.7z ./*
+          echo "image_name=${image_name}" >> $GITHUB_ENV
 
-      # 8. 配置编译选项
-      - name: Configure build for ${{ matrix.model }}
-        working-directory: Padavan/trunk  # 更新为正确的路径
-        env:
-          API_KEY: ${{ secrets.API_KEY }}  # 使用 GitHub Secrets
-        run: |
-          # 加载 build.config 中的配置
-          source build.config  # 直接加载 build.config
-
-          # 根据型号复制相应的配置文件
-          cp configs/templates/${{ matrix.model }}.config configs/my_build.config
-
-          # 根据环境进行额外配置
-          if [ "$ENV" = "production" ]; then
-            echo "Configuring for production environment."
-            # 生产环境的配置步骤
-          else
-            echo "Configuring for development environment."
-            # 开发环境的配置步骤
-          fi
-
-          # 根据调试模式进行配置
-          if [ "$DEBUG" = "true" ]; then
-            echo "Enabling debug mode."
-            # 启用调试模式的配置步骤
-          else
-            echo "Debug mode disabled."
-          fi
-
-          # 根据自定义选项进行配置
-          if [ "$CUSTOM_FEATURES" = "true" ]; then
-            echo "Enabling custom features."
-            # 启用自定义功能的配置步骤
-          fi
-
-          # 处理其他自定义参数
-          echo "Optional parameter: $OPTIONAL_PARAM"
-
-          # 使用 Secrets 中的 API_KEY
-          echo "API_KEY=${API_KEY}" >> configs/my_build.config
-
-      # 9. 编译固件
-      - name: Build Firmware for ${{ matrix.model }}
-        working-directory: Padavan/trunk  # 更新为正确的路径
-        run: |
-          ./build_firmware_modify ${{ matrix.model }}  # 使用 build_firmware_modify 编译固件
-
-      # 10. 编译 CI 版本
-      - name: Build CI Firmware for ${{ matrix.model }}
-        working-directory: Padavan/trunk  # 更新为正确的路径
-        run: |
-          ./build_firmware_ci ${{ matrix.model }}  # 使用 build_firmware_ci 编译固件
-
-      # 11. 上传编译产物
-      - name: Upload Firmware for ${{ matrix.model }}
-        uses: actions/upload-artifact@v3
+      - name: Upload images to Artifact
+        if: ${{ github.event_name != 'release' && success() }}
+        uses: actions/upload-artifact@v2.2.1
         with:
-          name: padavan-firmware-${{ matrix.model }}-${{ github.sha }}
-          path: Padavan/trunk/images/*.trx  # 确保路径正确
+          name: ${{ env.image_name }}
+          path: ${{ env.images_dir }}/*.7z
+
+      - name: Upload images to Releases
+        if: ${{ github.event_name == 'release' && success() }}
+        uses: svenstaro/upload-release-action@2.2.0
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: ${{ env.images_dir }}/*.trx
+          tag: ${{ github.ref }}
+          overwrite: true
+          file_glob: true
