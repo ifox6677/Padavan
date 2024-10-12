@@ -12,7 +12,7 @@ jobs:
 
     strategy:
       matrix:
-        model: [Mi_R3P]
+        model: [Mi-R3P]
 
     steps:
       - name: Checkout repository
