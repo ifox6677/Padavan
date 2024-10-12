@@ -5,6 +5,8 @@ on:
     branches:
       - main
   workflow_dispatch:
+  schedule:
+    - cron: '0 0 * * *'  # 每天凌晨 0 点触发
 
 jobs:
   build:
@@ -12,70 +14,109 @@ jobs:
 
     strategy:
       matrix:
-        model: [Mi-R3P]
+        model: [PSG1218, MODEL2, MODEL3]  # 需要编译的路由器型号列表
 
     steps:
+      # 1. 检出仓库代码，并启用 Git LFS（如果使用 Git LFS 存储工具链）
       - name: Checkout repository
         uses: actions/checkout@v3
+        with:
+          lfs: true  # 如果使用 Git LFS，请启用
 
+      # 2. 安装依赖项
       - name: Install dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y build-essential gawk git subversion libncurses5-dev zlib1g-dev \
               gperf gettext unzip python3 python3-pip curl libssl-dev bc
 
+      # 3. 安装指定版本的 Go 语言（1.23.0）
       - name: Setup Go 1.23.0
         uses: actions/setup-go@v4
         with:
           go-version: 1.23.0
           cache: 'go'
 
+      # 4. 验证 Go 版本（可选）
       - name: Verify Go version
         run: go version
 
+      # 5. 缓存 Go 模块
+      - name: Cache Go modules
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      # 6. 缓存工具链
       - name: Cache toolchain
         uses: actions/cache@v3
         with:
-          path: padavan/toolchain
-          key: ${{ runner.os }}-padavan-toolchain-${{ hashFiles('padavan/toolchain/**') }}
+          path: toolchain-mipsel
+          key: ${{ runner.os }}-toolchain-mipsel-${{ hashFiles('toolchain-mipsel/**') }}
           restore-keys: |
-            ${{ runner.os }}-padavan-toolchain-
+            ${{ runner.os }}-toolchain-mipsel-
 
+      # 7. 下载并解压工具链（如果未缓存）
       - name: Download and extract toolchain
         if: steps.cache-toolchain.outputs.cache-hit != 'true'
         run: |
-          curl -L -o toolchain.tar.gz https://github.com/your-username/your-repo/releases/download/v1.0/toolchain.tar.gz
-          mkdir -p padavan/toolchain
-          tar -xzf toolchain.tar.gz -C padavan/toolchain
+          # 如果工具链存储在 GitHub Releases，请使用 curl 或 wget 下载
+          # 这里假设工具链已包含在仓库中，无需下载
+          echo "使用本地工具链，无需下载。"
 
+      # 8. 设置工具链路径
       - name: Setup toolchain
         run: |
-          export PATH=$(pwd)/padavan/toolchain/bin:$PATH
-          echo "PATH=$PATH" >> $GITHUB_ENV
+          echo "Adding toolchain-mipsel to PATH"
+          echo "/home/runner/work/${{ github.repository }}/toolchain-mipsel/bin" >> $GITHUB_PATH
 
+      # 9. 清理旧的源代码（可选）
       - name: Clean sources
         working-directory: padavan/source
         run: |
           ../../tools/clean_sources.sh
 
+      # 10. 设置源代码（如果有需要）
       - name: Setup sources
         working-directory: padavan/source
         run: |
           ../../tools/setup_toolchain.sh
 
+      # 11. 配置编译选项
       - name: Configure build for ${{ matrix.model }}
         working-directory: padavan/source
         run: |
+          # 加载 build.config 中的配置
           source ../../build.config
+          # 根据型号复制相应的配置文件
           cp configs/templates/${{ matrix.model }}.config configs/my_build.config
 
+      # 12. 编译固件
       - name: Build Firmware for ${{ matrix.model }}
         working-directory: padavan/source
         run: |
           ./build_firmware_modify ${{ matrix.model }}
 
+      # 13. 上传编译产物
       - name: Upload Firmware for ${{ matrix.model }}
         uses: actions/upload-artifact@v3
         with:
           name: padavan-firmware-${{ matrix.model }}-${{ github.sha }}
           path: padavan/source/images/*.trx
+
+      # 14. 错误通知（可选）
+      - name: Notify Slack on Failure
+        if: failure()
+        uses: rtCamp/action-slack-notify@v2
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+        with:
+          args: |
+            {
+              "text": "Build failed for model ${{ matrix.model }} in commit ${{ github.sha }}"
+            }
