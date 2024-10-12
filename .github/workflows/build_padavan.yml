@@ -53,7 +53,7 @@ jobs:
 
       - name: Prepare toolchain
         run: |
-          cd rt-n56u/toolchain-mipsel
+          cd ./toolchain-mipsel  # 使用相对路径
           sh dl_toolchain.sh
 
       - name: Setup tmate session
@@ -64,7 +64,7 @@ jobs:
 
       - name: Start build
         run: |
-          cd rt-n56u/trunk  # 确保目录正确
+          cd ./trunk  # 使用相对路径
           mkdir -p ${images_dir}
           for m in ${{ matrix.targets }}; do
             fakeroot ./build_firmware_ci $m
