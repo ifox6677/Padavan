@@ -72,7 +72,7 @@ jobs:
             fakeroot ./build_firmware_ci $m  # 执行构建命令
             if [ $? = 0 ]; then  # 如果构建成功
               cp -f images/*.trx ${images_dir}/$m.trx  # 复制 .trx 文件到输出目录
-              cp -f vendors/Ralink/config.arch ${images_dir}/$m.config  # 复制 config 文件到输出目录
+              cp -f vendors/config/mips/config.arch ${images_dir}/$m.config  # 复制 config 文件到输出目录
             else
               exit 1  # 如果构建失败，退出
             fi
