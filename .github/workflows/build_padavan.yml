@@ -60,7 +60,7 @@ jobs:
           sh dl_toolchain.sh
 
       - name: Setup tmate session
-        uses: mxschmitt/action-tmate@v4
+        uses: mxschmitt/action-tmate@v3
         if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.debug_enabled == 'yes' }}
         with:
           limit-access-to-actor: true
@@ -74,6 +74,7 @@ jobs:
             fakeroot ./build_firmware_ci $m
             if [ $? = 0 ]; then
               cp -f images/*.trx ${images_dir}/$m.trx
+              cp -f path/to/config_file ${images_dir}/$m.config  # 添加此行以复制config文件
             else
               exit 1
             fi
@@ -87,7 +88,7 @@ jobs:
           GIT_VERSION=$(git rev-parse --short=7 HEAD 2>/dev/null) && [ -n "$GIT_VERSION" ] && \
           image_name=images_${{ matrix.build_variant }}_${GIT_VERSION} || image_name=images_${{ matrix.build_variant }}
           cd ${images_dir}
-          md5sum *.trx | tee md5sum.txt
+          md5sum *.trx *.config | tee md5sum.txt  # 更新md5sum以包含config文件
           7z a -mx=9 ${image_name}.7z ./*
           echo "image_name=${image_name}" >> $GITHUB_ENV
 
@@ -103,7 +104,9 @@ jobs:
         uses: svenstaro/upload-release-action@2.2.0
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: ${{ env.images_dir }}/*.trx
+          file: |
+            ${{ env.images_dir }}/*.trx
+            ${{ env.images_dir }}/*.config  # 添加config文件的路径
           tag: ${{ github.ref }}
           overwrite: true
           file_glob: true
