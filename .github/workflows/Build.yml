@@ -1,0 +1,104 @@
+name: Build Padavan Firmware
+
+on:
+  workflow_dispatch:  # 仅手动触发
+    inputs:
+      debug_enabled:
+        description: 'Run the build with tmate debugging enabled (https://github.com/marketplace/actions/debugging-with-tmate)'
+        required: false
+        default: 'no'
+
+jobs:
+  build:
+    name: Build Firmware
+    runs-on: ubuntu-20.04
+    env:
+      images_dir: /opt/images
+    strategy:
+      matrix:
+        include:
+          - build_variant: "mt7621-usb"
+            targets: "MI-R3G"  # 指定编译的机型为 MI-R3P
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Prepare environment
+        run: |
+          sudo apt update
+          sudo apt install -y unzip libtool-bin curl cmake gperf gawk flex bison \
+              nano xxd fakeroot kmod cpio git python3-docutils gettext automake \
+              autopoint texinfo build-essential help2man pkg-config zlib1g-dev \
+              libgmp3-dev libmpc-dev libmpfr-dev libncurses5-dev libltdl-dev \
+              wget libc-dev-bin squashfs-tools # 添加维护人推荐的依赖项
+
+      - name: Install Go
+        run: |
+          wget https://golang.org/dl/go1.23.0.linux-amd64.tar.gz
+          sudo tar -C /usr/local -xzf go1.23.0.linux-amd64.tar.gz
+          echo 'export PATH=$PATH:/usr/local/go/bin' >> $GITHUB_ENV
+
+      - name: Cache Go modules
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Prepare toolchain
+        run: |
+          cd ./toolchain-mipsel
+          sh dl_toolchain.sh
+
+      - name: Setup tmate session
+        uses: mxschmitt/action-tmate@v3
+        if: ${{ github.event.inputs.debug_enabled == 'yes' }}
+        with:
+          limit-access-to-actor: true
+
+      - name: Start build
+        run: |
+          cd ./trunk  # 确保目录正确
+          mkdir -p ${images_dir}
+          # 编译每个目标
+          for m in ${{ matrix.targets }}; do
+            fakeroot ./build_firmware_ci $m
+            if [ $? = 0 ]; then
+              cp -f images/*.trx ${images_dir}/$m.trx
+              cp -f path/to/config_file ${images_dir}/$m.config  # 添加此行以复制config文件
+            else
+              exit 1
+            fi
+            ./clear_tree_simple >/dev/null 2>&1
+          done
+
+      - name: Create archive
+        run: |
+          ls -lh ${images_dir}
+          GIT_VERSION=$(git rev-parse --short=7 HEAD 2>/dev/null) && [ -n "$GIT_VERSION" ] && \
+          image_name=images_${{ matrix.build_variant }}_${GIT_VERSION} || image_name=images_${{ matrix.build_variant }}
+          cd ${images_dir}
+          md5sum *.trx *.config | tee md5sum.txt  # 更新md5sum以包含config文件
+          7z a -mx=9 ${image_name}.7z ./*
+          echo "image_name=${image_name}" >> $GITHUB_ENV
+
+      - name: Upload images to Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.image_name }}
+          path: ${{ env.images_dir }}/*.7z
+
+      - name: Upload images to Releases
+        uses: svenstaro/upload-release-action@2.2.0
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: |
+            ${{ env.images_dir }}/*.trx
+            ${{ env.images_dir }}/*.config  # 添加config文件的路径
+          tag: ${{ github.ref }}
+          overwrite: true
+          file_glob: true
