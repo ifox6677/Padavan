@@ -22,7 +22,7 @@ jobs:
     strategy:
       matrix:
         include:
-          - build_variant: "mt7621"
+          - build_variant: "mt7621-usb"
             targets: "MI-R3P"  # 指定编译的机型为 MI-R3P
 
     steps:
