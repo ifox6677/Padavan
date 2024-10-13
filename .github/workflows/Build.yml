@@ -1,104 +1,111 @@
-name: Build Padavan Firmware
+
+name: Build Padavan2 Firmware  # 工作流名称
 
 on:
-  workflow_dispatch:  # 仅手动触发
+  workflow_dispatch:  # 手动触发
     inputs:
-      debug_enabled:
-        description: 'Run the build with tmate debugging enabled (https://github.com/marketplace/actions/debugging-with-tmate)'
+      debug_enabled:  # 输入参数，是否启用调试
+        description: 'Run the build with tmate debugging enabled (https://github.com/marketplace/actions/debugging-with-tmate)'     
         required: false
-        default: 'no'
+        default: 'no'  # 默认值为 'no'
+  release:  # 当有新版本发布时触发
+    types: [published]
 
 jobs:
-  build:
-    name: Build Firmware
-    runs-on: ubuntu-20.04
+  build:  # 构建作业
+    name: Build Firmware  # 作业名称
+    runs-on: ubuntu-20.04  # 指定运行环境
+    if: ${{ !(github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')) }}  # 不在 push 时处理标签事件
     env:
-      images_dir: /opt/images
+      images_dir: /opt/images  # 定义环境变量 images_dir
     strategy:
-      matrix:
+      matrix:  # 矩阵策略，允许并行构建多个目标
         include:
-          - build_variant: "mt7621-usb"
-            targets: "MI-R3G"  # 指定编译的机型为 MI-R3P
+          - build_variant: "mt7621-usb"  # 构建变体
+            targets: "MI-R3P-breed# 指定编译的机型为 MI-R3G
 
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
+    steps:  # 步骤列表
+      - name: Checkout repository  # 检出代码库
+        uses: actions/checkout@v3  # 使用官方的检出动作
 
-      - name: Prepare environment
-        run: |
-          sudo apt update
+      - name: Prepare environment  # 准备构建环境
+        run: |  # 运行多行命令
+          sudo apt update  # 更新软件包列表
           sudo apt install -y unzip libtool-bin curl cmake gperf gawk flex bison \
               nano xxd fakeroot kmod cpio git python3-docutils gettext automake \
               autopoint texinfo build-essential help2man pkg-config zlib1g-dev \
               libgmp3-dev libmpc-dev libmpfr-dev libncurses5-dev libltdl-dev \
-              wget libc-dev-bin squashfs-tools # 添加维护人推荐的依赖项
+              wget libc-dev-bin squashfs-tools  # 安装构建所需的依赖项
 
-      - name: Install Go
+      - name: Install Go  # 安装 Go 语言
         run: |
-          wget https://golang.org/dl/go1.23.0.linux-amd64.tar.gz
-          sudo tar -C /usr/local -xzf go1.23.0.linux-amd64.tar.gz
-          echo 'export PATH=$PATH:/usr/local/go/bin' >> $GITHUB_ENV
+          wget https://golang.org/dl/go1.23.0.linux-amd64.tar.gz  # 下载 Go
+          sudo tar -C /usr/local -xzf go1.23.0.linux-amd64.tar.gz  # 解压到 /usr/local
+          echo 'export PATH=$PATH:/usr/local/go/bin' >> $GITHUB_ENV  # 将 Go 添加到环境变量中
 
-      - name: Cache Go modules
-        uses: actions/cache@v3
+      - name: Cache Go modules  # 缓存 Go 模块
+        uses: actions/cache@v3  # 使用缓存动作
         with:
-          path: |
-            ~/.cache/go-build
-            ~/go/pkg/mod
-          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-          restore-keys: |
+          path: |  # 缓存的路径
+            ~/.cache/go-build  # Go 构建缓存
+            ~/go/pkg/mod  # Go 模块缓存
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}  # 缓存键
+          restore-keys: |  # 还原键
             ${{ runner.os }}-go-
 
-      - name: Prepare toolchain
+      - name: Prepare toolchain  # 准备工具链
         run: |
-          cd ./toolchain-mipsel
-          sh dl_toolchain.sh
+          cd ./toolchain-mipsel  # 切换到工具链目录
+          sh dl_toolchain.sh  # 执行脚本下载工具链
 
-      - name: Setup tmate session
-        uses: mxschmitt/action-tmate@v3
-        if: ${{ github.event.inputs.debug_enabled == 'yes' }}
+      - name: Setup tmate session  # 设置 tmate 会话（用于调试）
+        uses: mxschmitt/action-tmate@v3  # 使用 tmate 动作
+        if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.debug_enabled == 'yes' }}  # 仅在手动触发且启用调试时
         with:
-          limit-access-to-actor: true
+          limit-access-to-actor: true  # 限制访问权限
 
-      - name: Start build
+      - name: Start build  # 开始构建
         run: |
           cd ./trunk  # 确保目录正确
-          mkdir -p ${images_dir}
+          mkdir -p ${images_dir}  # 创建输出目录
           # 编译每个目标
-          for m in ${{ matrix.targets }}; do
-            fakeroot ./build_firmware_ci $m
-            if [ $? = 0 ]; then
-              cp -f images/*.trx ${images_dir}/$m.trx
-              cp -f path/to/config_file ${images_dir}/$m.config  # 添加此行以复制config文件
+          for m in ${{ matrix.targets }}; do  # 遍历构建目标
+            fakeroot ./build_firmware_ci $m  # 执行构建命令
+            if [ $? = 0 ]; then  # 如果构建成功
+              cp -f images/*.trx ${images_dir}/$m.trx  # 复制 .trx 文件到输出目录
+              cp -f vendors/config/mips/config.arch ${images_dir}/$m.config  # 复制 config 文件到输出目录
             else
-              exit 1
+              exit 1  # 如果构建失败，退出
             fi
-            ./clear_tree_simple >/dev/null 2>&1
+            ./clear_tree_simple >/dev/null 2>&1  # 清理构建树
           done
 
-      - name: Create archive
+      - name: Create archive  # 创建归档
+        if: ${{ github.event_name != 'release' && success() }}  # 仅在非发布事件且构建成功时执行
         run: |
-          ls -lh ${images_dir}
+          ls -lh ${images_dir}  # 列出输出目录的文件
           GIT_VERSION=$(git rev-parse --short=7 HEAD 2>/dev/null) && [ -n "$GIT_VERSION" ] && \
-          image_name=images_${{ matrix.build_variant }}_${GIT_VERSION} || image_name=images_${{ matrix.build_variant }}
-          cd ${images_dir}
-          md5sum *.trx *.config | tee md5sum.txt  # 更新md5sum以包含config文件
-          7z a -mx=9 ${image_name}.7z ./*
-          echo "image_name=${image_name}" >> $GITHUB_ENV
+          image_name=images_${{ matrix.build_variant }}_${GIT_VERSION} || image_name=images_${{ matrix.build_variant }}  # 生成归档名称
+          cd ${images_dir}  # 切换到输出目录
+          md5sum *.trx *.config | tee md5sum.txt  # 计算 .trx 和 .config 文件的 MD5 值，并保存到 md5sum.txt
+          7z a -mx=9 ${image_name}.7z ./*  # 将输出目录中的文件压缩成 7z 格式
+          echo "image_name=${image_name}" >> $GITHUB_ENV  # 将归档名称写入环境变量
 
-      - name: Upload images to Artifact
-        uses: actions/upload-artifact@v4
+      - name: Upload images to Artifact  # 上传图像到 GitHub Artifact
+        if: ${{ github.event_name != 'release' && success() }}  # 仅在非发布事件且构建成功时执行
+        uses: actions/upload-artifact@v4  # 使用上传工件的动作
         with:
-          name: ${{ env.image_name }}
-          path: ${{ env.images_dir }}/*.7z
+          name: ${{ env.image_name }}  # 设置工件名称
+          path: ${{ env.images_dir }}/*.7z  # 上传 .7z 文件
 
-      - name: Upload images to Releases
-        uses: svenstaro/upload-release-action@2.2.0
+      - name: Upload images to Releases  # 上传图像到发布版本
+        if: ${{ github.event_name == 'release' && success() }}  # 仅在发布事件且构建成功时执行
+        uses: svenstaro/upload-release-action@2.2.0  # 使用上传发布的动作
         with:
-          repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: |
-            ${{ env.images_dir }}/*.trx
-            ${{ env.images_dir }}/*.config  # 添加config文件的路径
-          tag: ${{ github.ref }}
-          overwrite: true
-          file_glob: true
+          repo_token: ${{ secrets.GITHUB_TOKEN }}  # 使用 GitHub Token
+          file: |  # 指定上传的文件
+            ${{ env.images_dir }}/*.trx  # 上传 .trx 文件
+            ${{ env.images_dir }}/*.config  # 上传 .config 文件
+          tag: ${{ github.ref }}  # 使用发布的标签
+          overwrite: true  # 允许覆盖已有文件
+          file_glob: true  # 允许使用通配符
