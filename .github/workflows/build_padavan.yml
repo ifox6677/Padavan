@@ -1,8 +1,6 @@
 name: Build Padavan2 Firmware
 
 on:
-  #push:
-  #pull_request:
   workflow_dispatch:
     inputs:
       debug_enabled:
@@ -23,7 +21,7 @@ jobs:
       matrix:
         include:
           - build_variant: "mt7621-usb"
-            targets: "MI-R3G"  # 指定编译的机型为 MI-R3P
+            targets: "MI-R3G"  # 指定编译的机型为 MI-R3G
 
     steps:
       - name: Checkout repository
@@ -73,8 +71,10 @@ jobs:
           for m in ${{ matrix.targets }}; do
             fakeroot ./build_firmware_ci $m
             if [ $? = 0 ]; then
+              # 调试：列出 images 目录中的文件
+              ls -lh images/
               cp -f images/*.trx ${images_dir}/$m.trx
-              cp -f path/to/config_file ${images_dir}/$m.config  # 添加此行以复制config文件
+              cp -f images/${m}.config ${images_dir}/$m.config  # 替换为实际路径
             else
               exit 1
             fi
