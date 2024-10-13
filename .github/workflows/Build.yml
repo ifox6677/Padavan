@@ -22,7 +22,7 @@ jobs:
       matrix:  # 矩阵策略，允许并行构建多个目标
         include:
           - build_variant: "mt7621-usb"  # 构建变体
-            targets: "MI-R3P-breed"      # 指定编译的机型 
+            targets: "MI-R3P"      # 指定编译的机型 
 
     steps:  # 步骤列表
       - name: Checkout repository  # 检出代码库
