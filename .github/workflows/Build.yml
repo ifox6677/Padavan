@@ -1,8 +1,8 @@
 name: Build Padavan Firmware
 
 on:
-  push:
-  pull_request:
+  #push:
+  #pull_request:
   workflow_dispatch:
     inputs:
       debug_enabled:
