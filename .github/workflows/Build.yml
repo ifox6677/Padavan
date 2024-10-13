@@ -1,5 +1,5 @@
 
-name: Build Padavan2 Firmware  # 工作流名称
+name: Build Padavan Firmware  # 工作流名称
 
 on:
   workflow_dispatch:  # 手动触发
