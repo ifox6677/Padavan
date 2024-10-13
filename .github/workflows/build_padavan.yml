@@ -1,4 +1,4 @@
-name: Build Padavan Firmware
+name: Build Padavan2 Firmware
 
 on:
   #push:
