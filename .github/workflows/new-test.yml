@@ -55,7 +55,7 @@ jobs:
       - name: Copy toolchain
         run: |
           # 确保目标目录存在
-          mkdir -p ./toolchain-mipsel
+          # mkdir -p ./toolchain-mipsel
 
           # 复制工具链
           cp -r ./padavan-ng/toolchain/* ./toolchain-mipsel/
@@ -63,10 +63,10 @@ jobs:
       - name: Copy uClibc-ng
         run: |
           # 确保目标目录存在
-          mkdir -p ./trunk/libs
+          #mkdir -p ./trunk/libs
 
           # 复制 uClibc-ng-1.0.50 目录
-          cp -r ./padavan-ng/trunk/libs/uClibc-ng-1.0.50 ./trunk/libs/
+          cp -r ./padavan-ng/trunk/libc/uClibc-ng-1.0.50 ./trunk/libc/
 
       - name: Prepare environment
         run: |
