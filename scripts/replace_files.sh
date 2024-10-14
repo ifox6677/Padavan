@@ -8,9 +8,13 @@ TARGET_DIR=$2
 
 # 定义需要替换的文件或目录映射
 declare -A file_map=(
-  ["trunk/user/packageA"]="trunk/user/packageA"
-  ["trunk/user/packageB"]="trunk/user/packageB"
-  ["trunk/user/packageC"]="trunk/user/packageC"
+  ["trunk/user/ttyd"]="trunk/user/ttyd"
+  ["trunk/user/xray"]="trunk/user/xray"
+  ["trunk/user/shadowsocks"]="trunk/user/shadowsocks"
+  ["trunk/user/dnsproxy"]="trunk/user/dnsproxy"
+  ["trunk/user/chinadns-ng"]="trunk/user/chinadns-ng"
+  ["trunk/user/trojan"]="trunk/user/trojan"
+
   # 根据需要添加更多文件或目录映射
 )
 
