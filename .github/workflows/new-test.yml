@@ -1,0 +1,148 @@
+name: Build new Padavan Firmware
+
+on:
+  workflow_dispatch:
+    inputs:
+      debug_enabled:
+        description: 'Run the build with tmate debugging enabled (https://github.com/marketplace/actions/debugging-with-tmate)'     
+        required: false
+        default: 'no'
+  release:
+    types: [published]
+
+jobs:
+  build:
+    name: Build Firmware
+    runs-on: ubuntu-20.04
+    if: ${{ !(github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')) }}
+    env:
+      images_dir: /opt/images
+    strategy:
+      matrix:
+        include:
+          - build_variant: "mt7621-usb"
+            targets: "MI-R3P"  # 指定编译的机型为 MI-R3P
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - id: cache-replacement-files
+        name: Cache Replacement Files Repository
+        uses: actions/cache@v3
+        with:
+          path: temp/padavan-4.4
+          key: padavan-4.4-${{ hashFiles('**/padavan-4.4/**/*') }}
+          restore-keys: |
+            padavan-4.4-
+
+      - name: Clone Padavan-4.4 Repository
+        if: steps.cache-replacement-files.outputs.cache-hit != 'true'
+        run: |
+          git clone https://github.com/ifox6677/padavan-4.4.git temp/padavan-4.4
+
+      - name: Replace User Packages
+        run: |
+          chmod +x scripts/replace_files.sh
+          ./scripts/replace_files.sh temp/padavan-4.4 ./  # 假设目标目录是仓库根目录
+
+      - name: Checkout additional repository (hadzhioglu/padavan-ng)
+        uses: actions/checkout@v2
+        with:
+          repository: hadzhioglu/padavan-ng
+          path: padavan-ng  # 将 padavan-ng 克隆到工作目录的 padavan-ng 文件夹中
+
+      - name: Copy toolchain
+        run: |
+          # 确保目标目录存在
+          mkdir -p ./toolchain-mipsel
+
+          # 复制工具链
+          cp -r ./padavan-ng/toolchain/* ./toolchain-mipsel/
+
+      - name: Copy uClibc-ng
+        run: |
+          # 确保目标目录存在
+          mkdir -p ./trunk/libs
+
+          # 复制 uClibc-ng-1.0.50 目录
+          cp -r ./padavan-ng/trunk/libs/uClibc-ng-1.0.50 ./trunk/libs/
+
+      - name: Prepare environment
+        run: |
+          sudo apt update
+          sudo apt install -y unzip libtool-bin curl cmake gperf gawk flex bison \
+              nano xxd fakeroot kmod cpio git python3-docutils gettext automake \
+              autopoint texinfo build-essential help2man pkg-config zlib1g-dev \
+              libgmp3-dev libmpc-dev libmpfr-dev libncurses5-dev libltdl-dev \
+              wget libc-dev-bin squashfs-tools # 添加维护人推荐的依赖项
+
+      - name: Install Go
+        run: |
+          wget https://golang.org/dl/go1.23.0.linux-amd64.tar.gz
+          sudo tar -C /usr/local -xzf go1.23.0.linux-amd64.tar.gz
+          echo 'export PATH=$PATH:/usr/local/go/bin' >> $GITHUB_ENV
+
+      - name: Cache Go modules
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Prepare toolchain
+        run: |
+          cd ./toolchain-mipsel
+          sh dl_toolchain.sh
+
+      - name: Setup tmate session
+        uses: mxschmitt/action-tmate@v3
+        if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.debug_enabled == 'yes' }}
+        with:
+          limit-access-to-actor: true
+
+      - name: Start build
+        run: |
+          cd ./trunk  # 确保目录正确
+          mkdir -p ${images_dir}
+          # 编译每个目标
+          for m in ${{ matrix.targets }}; do
+            fakeroot ./build_firmware_ci $m
+            if [ $? = 0 ]; then
+              cp -f images/*.trx ${images_dir}/$m.trx
+            else
+              exit 1
+            fi
+            ./clear_tree_simple >/dev/null 2>&1
+          done
+
+      - name: Create archive
+        if: ${{ github.event_name != 'release' && success() }}
+        run: |
+          ls -lh ${images_dir}
+          GIT_VERSION=$(git rev-parse --short=7 HEAD 2>/dev/null) && [ -n "$GIT_VERSION" ] && \
+          image_name=images_${{ matrix.build_variant }}_${GIT_VERSION} || image_name=images_${{ matrix.build_variant }}
+          cd ${images_dir}
+          md5sum *.trx | tee md5sum.txt
+          7z a -mx=9 ${image_name}.7z ./*
+          echo "image_name=${image_name}" >> $GITHUB_ENV
+
+      - name: Upload images to Artifact
+        if: ${{ github.event_name != 'release' && success() }}
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ env.image_name }}
+          path: ${{ env.images_dir }}/*.7z
+
+      - name: Upload images to Releases
+        if: ${{ github.event_name == 'release' && success() }}
+        uses: svenstaro/upload-release-action@2.2.0
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: ${{ env.images_dir }}/*.trx
+          tag: ${{ github.ref }}
+          overwrite: true
+          file_glob: true
