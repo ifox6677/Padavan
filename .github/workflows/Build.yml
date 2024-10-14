@@ -1,8 +1,6 @@
 name: Build Padavan Firmware
 
 on:
-  #push:
-  #pull_request:
   workflow_dispatch:
     inputs:
       debug_enabled:
@@ -28,6 +26,24 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v2
+
+      - name: Cache Replacement Files Repository
+        uses: actions/cache@v3
+        with:
+          path: temp/padavan-4.4
+          key: padavan-4.4-${{ hashFiles('**/padavan-4.4/**/*') }}
+          restore-keys: |
+            padavan-4.4-
+
+      - name: Clone Padavan-4.4 Repository
+        if: steps.cache-replacement-files.outputs.cache-hit != 'true'
+        run: |
+          git clone https://github.com/ifox6677/padavan-4.4.git temp/padavan-4.4
+
+      - name: Replace User Packages
+        run: |
+          chmod +x scripts/replace_files.sh
+          ./scripts/replace_files.sh temp/padavan-4.4 ./  # 假设目标目录是仓库根目录
 
       - name: Prepare environment
         run: |
