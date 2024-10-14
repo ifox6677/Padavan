@@ -66,7 +66,7 @@ jobs:
           #mkdir -p ./trunk/libs
 
           # 复制 uClibc-ng-1.0.50 目录
-          cp -r ./padavan-ng/trunk/libc/uClibc-ng-1.0.50 ./trunk/libc/
+          cp -r ./padavan-ng/trunk/libc/* ./trunk/libc/
 
       - name: Prepare environment
         run: |
