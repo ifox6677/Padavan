@@ -13,7 +13,7 @@ declare -A file_map=(
   ["trunk/user/shadowsocks"]="trunk/user/shadowsocks"
   ["trunk/user/dnsproxy"]="trunk/user/dnsproxy"
   ["trunk/user/chinadns-ng"]="trunk/user/chinadns-ng"
-  ["trunk/user/trojan"]="trunk/user/trojan"
+  #["trunk/user/trojan"]="trunk/user/trojan"
 
   # 根据需要添加更多文件或目录映射
 )
