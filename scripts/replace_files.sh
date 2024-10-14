@@ -13,7 +13,8 @@ declare -A file_map=(
   ["trunk/user/shadowsocks"]="trunk/user/shadowsocks"
   ["trunk/user/dnsproxy"]="trunk/user/dnsproxy"
   ["trunk/user/chinadns-ng"]="trunk/user/chinadns-ng"
-uClibc-ng-1.0.48
+  ["trunk/user/ttyd"]="trunk/user/ttyd"
+  ["trunk/user/chinadns-ng"]="trunk/user/chinadns-ng"
   # 根据需要添加更多文件或目录映射
 )
 
