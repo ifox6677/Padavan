@@ -1,3 +1,4 @@
+
 #!/bin/bash
 
 set -e  # 如果任何命令失败，脚本将退出
@@ -15,6 +16,9 @@ declare -A file_map=(
   ["trunk/user/chinadns-ng"]="trunk/user/chinadns-ng"
   ["trunk/user/ttyd"]="trunk/user/ttyd"
   ["trunk/user/trojan"]="trunk/user/trojan"
+  ["trunk/libs/boost"]="trunk/libs/boost"  
+  ["trunk/libs/libwebsockets"]="trunk/libs/libwebsockets"	
+  ["trunk/libs/libjson-c"]="trunk/libs/libjson-c"  
   # 根据需要添加更多文件或目录映射
 )
 
